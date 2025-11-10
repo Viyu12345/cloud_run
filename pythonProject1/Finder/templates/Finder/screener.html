@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Stock AI screener</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style type="text/tailwindcss">
+        body {
+            background-color: #0A0A0A;
+            font-family: 'Inter', sans-serif;
+        }
+        .glass-card {
+            background: rgba(26, 26, 26, 0.5);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .skeleton-loader {
+            background-color: rgba(31, 41, 55, 0.8);
+            border-radius: 0.5rem;
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            50% {
+                opacity: .5;
+            }
+        }
+        /* For custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #111;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #4A00E0;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #8E2DE2;
+        }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/"
+  }
+}
+</script>
+</head>
+<body class="bg-[#0A0A0A] text-gray-300">
+    <div class="relative min-h-screen w-full flex flex-col items-center overflow-x-hidden">
+        <!-- Background Gradient -->
+        <div class="absolute top-0 left-0 w-full h-[400px] bg-gradient-to-b from-purple-900/30 to-transparent pointer-events-none"></div>
+
+        <!-- Header -->
+        <header class="relative z-20 w-full max-w-7xl mx-auto py-4 px-6 md:px-8">
+            <nav class="flex items-center justify-between">
+                <div class="flex items-center space-x-8">
+                    <a href="#" class="flex items-center space-x-2">
+                        <svg class="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+                            <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+                            <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+                        </svg>
+                        <span class="text-white font-bold text-lg"></span>
+                    </a>
+                    <div class="hidden md:flex items-center space-x-6 text-sm">
+                        <a href="{% url 'home' %}" class="text-gray-400 hover:text-white transition-colors">Home</a>
+                        <a href="{% url 'screening' %}" class="text-white font-medium">Screener</a>
+                        <a href="{% url 'apps' %}" class="text-gray-400 hover:text-white transition-colors">App</a>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4 text-sm">
+                    {% if user.is_authenticated %}
+                    <p class="text-gray-400 hover:text-white transition-colors">Hello, {{ user.username }}</p>
+                    {% else %}
+                    <a href="{% url 'login_view' %}" class="text-gray-400 hover:text-white transition-colors">Login</a>
+                    <a href="{% url 'signup_view' %}" class="bg-white text-black px-4 py-2 rounded-full font-medium hover:bg-gray-200 transition-colors">Signup</a>
+                    {% endif %}
+                </div>
+            </nav>
+        </header>
+
+        <!-- Main Content -->
+        <main class="relative z-20 flex-grow w-full max-w-7xl mx-auto flex flex-col items-center px-4 pb-20">
+
+            <!-- Screener Form Section -->
+            <section class="w-full max-w-3xl text-center py-16">
+                 <h1 class="text-4xl md:text-5xl font-bold text-white leading-tight mb-4">
+                    AI-Powered Stock Screener
+                </h1>
+                <p class="text-gray-400 text-lg mb-8 max-w-2xl mx-auto">
+                    Describe your ideal investment in plain English. Our AI will find stocks that match your criteria.
+                </p>
+
+                <form id="screener-form" class="w-full" action="{% url 'screening' %}" method="POST">
+                    {% csrf_token %}
+                    <div class="relative">
+                         <textarea
+                            id="criteria-input"
+                            name="criteria-input"
+                            class="w-full h-24 p-4 pr-12 glass-card rounded-xl text-gray-200 placeholder-gray-500 focus:ring-2 focus:ring-purple-500 focus:outline-none resize-none transition-all duration-300"
+                            placeholder="e.g., 'Profitable tech companies with low debt and a P/E ratio under 20...'"
+                        ></textarea>
+                         <button type="submit" id="submit-button" class="absolute bottom-3 right-3 bg-purple-600 hover:bg-purple-700 text-white rounded-full p-2 disabled:bg-gray-500 disabled:cursor-not-allowed transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="mt-4 flex flex-wrap items-center justify-center gap-2">
+                        <span class="text-sm text-gray-500 mr-2">Try:</span>
+                        <!-- Example query buttons will be inserted here by JS -->
+                    </div>
+                </form>
+            </section>
+
+            <!-- Results Section -->
+            <div id="results-container" class="w-full mt-2">
+                {{ response }}
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="relative z-20 w-full text-center p-4 text-xs text-gray-500">
+            <p>Disclaimer: Stock data is for informational purposes only and may not be completely accurate or up-to-date. Not financial advice.</p>
+        </footer>
+    </div>
+
+    <!-- Main Application Script -->
+    <script type="module">
+
+        const screenerForm = document.getElementById('screener-form');
+        const criteriaInput = document.getElementById('criteria-input');
+        const submitButton = document.getElementById('submit-button');
+        const resultsContainer = document.getElementById('results-container');
+        const exampleQueriesContainer = screenerForm.querySelector('div.flex-wrap');
+
+        const exampleQueries = [
+            "Tech stocks with P/E under 25",
+            "High-yield dividend stocks in the energy sector",
+            "Biotech companies with recent positive news",
+            "Undervalued consumer staples with strong cash flow",
+        ];
+
+
+
+        // --- UI RENDERING FUNCTIONS ---
+        function renderInitialState() {
+            resultsContainer.innerHTML = `
+                <div class="text-center p-8 glass-card rounded-xl">
+                    <svg class="mx-auto h-12 w-12 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    <h3 class="mt-2 text-sm font-medium text-white">Start your search</h3>
+                    <p class="mt-1 text-sm text-gray-400">Use the form above to find stocks that match your investment strategy.</p>
+                </div>
+            `;
+        }
+
+        function renderLoadingState() {
+            let skeletons = '';
+            for (let i = 0; i < 5; i++) {
+                skeletons += `
+                    <tr class="border-b border-gray-800">
+                        <td class="p-4"><div class="h-4 skeleton-loader w-16"></div></td>
+                        <td class="p-4"><div class="h-4 skeleton-loader w-32"></div></td>
+                        <td class="p-4 hidden md:table-cell"><div class="h-4 skeleton-loader w-24"></div></td>
+                        <td class="p-4 hidden lg:table-cell"><div class="h-4 skeleton-loader w-20"></div></td>
+                        <td class="p-4 hidden lg:table-cell"><div class="h-4 skeleton-loader w-20"></div></td>
+                        <td class="p-4 hidden xl:table-cell"><div class="h-4 skeleton-loader w-16"></div></td>
+                    </tr>
+                `;
+            }
+
+            resultsContainer.innerHTML = `
+                <div class="glass-card rounded-xl overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full text-sm text-left">
+                            <thead class="bg-white/5">
+                                <tr>
+                                    <th class="p-4 font-semibold text-white">Ticker</th>
+                                    <th class="p-4 font-semibold text-white">Company</th>
+                                    <th class="p-4 font-semibold text-white hidden md:table-cell">Sector</th>
+                                    <th class="p-4 font-semibold text-white hidden lg:table-cell">Price</th>
+                                    <th class="p-4 font-semibold text-white hidden lg:table-cell">Market Cap</th>
+                                    <th class="p-4 font-semibold text-white hidden xl:table-cell">P/E Ratio</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${skeletons}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderErrorState(message) {
+            resultsContainer.innerHTML = `
+                <div class="text-center p-8 glass-card rounded-xl border border-red-500/30">
+                    <svg class="mx-auto h-12 w-12 text-red-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <h3 class="mt-2 text-lg font-medium text-white">An Error Occurred</h3>
+                    <p class="mt-1 text-sm text-gray-400">${message}</p>
+                </div>
+            `;
+        }
+
+        function renderResults(stocks) {
+            if (!stocks || stocks.length === 0) {
+                resultsContainer.innerHTML = `
+                    <div class="text-center p-8 glass-card rounded-xl">
+                        <svg class="mx-auto h-12 w-12 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <h3 class="mt-2 text-sm font-medium text-white">No stocks found</h3>
+                        <p class="mt-1 text-sm text-gray-400">Try adjusting your criteria for a broader search.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            {{ response }}
+                    </div>
+                </div>
+            `;
+
+            // Add click listeners to toggle rationale
+            resultsContainer.querySelectorAll('tr[data-rationale]').forEach(row => {
+                row.addEventListener('click', () => {
+                    const rationaleRow = row.nextElementSibling;
+                    rationaleRow.classList.toggle('hidden');
+                });
+            });
+        }
+
+
+        // --- EVENT LISTENERS ---
+        screenerForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const criteria = criteriaInput.value.trim();
+            if (!criteria) return;
+
+            submitButton.disabled = true;
+            submitButton.classList.add('animate-pulse');
+            renderLoadingState();
+
+            try {
+                const stocks = await findStocks(criteria);
+                renderResults(stocks);
+            } catch (err) {
+                console.error(err);
+                renderErrorState('An error occurred while screening. The model may be unable to find matches for very specific criteria, or there might be a network issue. Please try again with a broader query.');
+            } finally {
+                submitButton.disabled = false;
+                submitButton.classList.remove('animate-pulse');
+            }
+        });
+
+        // --- INITIALIZATION ---
+        function initialize() {
+            // Populate example queries
+            exampleQueries.forEach(query => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'glass-card rounded-full px-3 py-1 text-xs text-gray-400 hover:text-white hover:border-gray-700 transition-colors';
+                button.textContent = query;
+                button.addEventListener('click', () => {
+                    criteriaInput.value = query;
+                    criteriaInput.focus();
+                });
+                exampleQueriesContainer.appendChild(button);
+            });
+
+            renderInitialState();
+        }
+
+        initialize();
+
+    </script>
+</body>
+</html>
